@@ -21,8 +21,7 @@ const INITIAL_CONFERENCES = [
     theme: "Artificial Intelligence & Ethics",
     location: "San Francisco, CA",
     date: "2024-10-15",
-    description:
-      "The premier conference for AI safety and future tech.",
+    description: "The premier conference for AI safety and future tech.",
     organizerId: "u1",
     template: "modern",
     banner:
@@ -74,6 +73,54 @@ export const AppProvider = ({ children }) => {
   const [conferences, setConferences] = useState(INITIAL_CONFERENCES);
   const [papers, setPapers] = useState(INITIAL_PAPERS);
   const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [notifications, setNotifications] = useState([]);
+
+  /* ================= TOAST SYSTEM ================= */
+
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = useCallback((message, type = "success", duration = 3000) => {
+    const id = Date.now();
+
+    setToasts((prev) => [...prev, { id, message, type, duration }]);
+
+   // 🔊 Safe sound playback
+try {
+  const audio = new Audio(
+    type === "error"
+      ? "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+      : "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"
+  );
+
+  audio.volume = 0.4;
+
+  audio.play().catch(() => {
+    // silently ignore autoplay errors
+  });
+} catch (err) {
+  console.log("Sound not supported");
+}
+
+
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, duration);
+  }, []);
+
+  /* ================= NOTIFICATIONS ================= */
+
+  const addNotification = useCallback((userId, message) => {
+    setNotifications((prev) => [
+      ...prev,
+      { id: `n${Date.now()}`, userId, message, read: false },
+    ]);
+  }, []);
+
+  const markNotificationRead = useCallback((id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  }, []);
 
   /* ================= AUTH ================= */
 
@@ -82,19 +129,26 @@ export const AppProvider = ({ children }) => {
       const found = users.find(
         (u) => u.email === email && u.password === password
       );
-      if (found) setUser(found);
+      if (found) {
+        setUser(found);
+        showToast("Login successful!", "success");
+      }
       return !!found;
     },
-    [users]
+    [users, showToast]
   );
 
   const logout = useCallback(() => {
     setUser(null);
-  }, []);
+    showToast("Logged out successfully", "info");
+  }, [showToast]);
 
   const register = useCallback(
     (name, email, password) => {
-      if (users.some((u) => u.email === email)) return false;
+      if (users.some((u) => u.email === email)) {
+        showToast("Email already exists", "error");
+        return false;
+      }
 
       const newUser = {
         id: `u${Date.now()}`,
@@ -105,9 +159,11 @@ export const AppProvider = ({ children }) => {
 
       setUsers((prev) => [...prev, newUser]);
       setUser(newUser);
+      showToast("Account created successfully!", "success");
+
       return true;
     },
-    [users]
+    [users, showToast]
   );
 
   /* ================= CONFERENCE ================= */
@@ -124,8 +180,11 @@ export const AppProvider = ({ children }) => {
       };
 
       setConferences((prev) => [...prev, newConf]);
+
+      addNotification(user.id, `Conference "${data.name}" created.`);
+      showToast("Conference created!", "success");
     },
-    [user]
+    [user, addNotification, showToast]
   );
 
   const getUserRole = useCallback(
@@ -138,23 +197,65 @@ export const AppProvider = ({ children }) => {
 
   /* ================= PAPERS ================= */
 
-  const addPaper = useCallback((paper) => {
-    setPapers((prev) => [...prev, { ...paper, id: `p${Date.now()}` }]);
-  }, []);
+  const addPaper = useCallback(
+    (paper) => {
+      const newPaper = {
+        ...paper,
+        id: `p${Date.now()}`,
+      };
 
-  const updatePaperStatus = useCallback((id, status, score = null) => {
-    setPapers((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, status, reviewScore: score } : p
-      )
-    );
-  }, []);
+      setPapers((prev) => [...prev, newPaper]);
+
+      addNotification(
+        paper.authorId,
+        `Your paper "${paper.title}" submitted.`
+      );
+      showToast("Paper submitted!", "success");
+    },
+    [addNotification, showToast]
+  );
+
+  const updatePaperStatus = useCallback(
+    (id, status, score = null, feedback = "") => {
+      setPapers((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                status,
+                reviewScore: score,
+                feedback,
+                reviewedAt: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+
+      const paper = papers.find((p) => p.id === id);
+
+      if (paper) {
+        addNotification(
+          paper.authorId,
+          `Your paper "${paper.title}" was ${status}.`
+        );
+        showToast(
+          `Paper ${status}`,
+          status === "accepted" ? "success" : "error"
+        );
+      }
+    },
+    [papers, addNotification, showToast]
+  );
 
   /* ================= TASKS ================= */
 
-  const addTask = useCallback((task) => {
-    setTasks((prev) => [...prev, { ...task, id: `t${Date.now()}` }]);
-  }, []);
+  const addTask = useCallback(
+    (task) => {
+      setTasks((prev) => [...prev, { ...task, id: `t${Date.now()}` }]);
+      showToast("Task added!", "success");
+    },
+    [showToast]
+  );
 
   const toggleTask = useCallback((id) => {
     setTasks((prev) =>
@@ -166,7 +267,7 @@ export const AppProvider = ({ children }) => {
     );
   }, []);
 
-  /* ================= MEMOIZED VALUE ================= */
+  /* ================= VALUE ================= */
 
   const value = useMemo(
     () => ({
@@ -175,6 +276,8 @@ export const AppProvider = ({ children }) => {
       conferences,
       papers,
       tasks,
+      notifications,
+      toasts,
       login,
       logout,
       register,
@@ -184,6 +287,9 @@ export const AppProvider = ({ children }) => {
       updatePaperStatus,
       addTask,
       toggleTask,
+      addNotification,
+      markNotificationRead,
+      showToast,
     }),
     [
       user,
@@ -191,6 +297,8 @@ export const AppProvider = ({ children }) => {
       conferences,
       papers,
       tasks,
+      notifications,
+      toasts,
       login,
       logout,
       register,
@@ -200,6 +308,9 @@ export const AppProvider = ({ children }) => {
       updatePaperStatus,
       addTask,
       toggleTask,
+      addNotification,
+      markNotificationRead,
+      showToast,
     ]
   );
 
