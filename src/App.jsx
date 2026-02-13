@@ -1,46 +1,51 @@
-import React, { useState } from 'react';
-import { useApp } from './context/AppContext';
-import AuthModule from './components/Auth/AuthModule';
-import CreateConference from './components/Conference/CreateConference';
-import ConferenceView from './components/Conference/ConferenceView';
-import UserDashboard from './components/Dashboard/UserDashboard';
+import React, { useState } from "react";
+import { useApp } from "./context/AppContext";
+
+import AuthModule from "./components/Auth/AuthModule";
+import CreateConference from "./components/Conference/CreateConference";
+import ConferenceView from "./components/Conference/ConferenceView";
+import UserDashboard from "./components/Dashboard/UserDashboard";
 
 const App = () => {
-  const { user } = useApp();
-  const [view, setView] = useState('dashboard');
+  const { user, getUserRole } = useApp();
+
+  const [view, setView] = useState("dashboard");
   const [selectedConf, setSelectedConf] = useState(null);
 
-  if (!user) {
-    return <AuthModule />;
-  }
+  /* ---------------- AUTH CHECK ---------------- */
+  if (!user) return <AuthModule />;
 
-  if (view === 'create') {
+  /* ---------------- CREATE VIEW ---------------- */
+  if (view === "create") {
     return (
-      <CreateConference 
-        onCancel={() => setView('dashboard')} 
-        onSuccess={() => setView('dashboard')} 
+      <CreateConference
+        onCancel={() => setView("dashboard")}
+        onSuccess={() => setView("dashboard")}
       />
     );
   }
 
-  if (view === 'conference' && selectedConf) {
-    const role = selectedConf.roles ? selectedConf.roles[user.id] : null;
+  /* ---------------- CONFERENCE VIEW ---------------- */
+  if (view === "conference" && selectedConf) {
+    const role = getUserRole(selectedConf);
+
     return (
-      <ConferenceView 
-        conf={selectedConf} 
-        role={role} 
-        onBack={() => setView('dashboard')} 
+      <ConferenceView
+        conf={selectedConf}
+        role={role}
+        onBack={() => setView("dashboard")}
       />
     );
   }
 
+  /* ---------------- DASHBOARD ---------------- */
   return (
-    <UserDashboard 
-      onSelectConf={(conf) => { 
-        setSelectedConf(conf); 
-        setView('conference'); 
-      }} 
-      onCreateConf={() => setView('create')} 
+    <UserDashboard
+      onSelectConf={(conf) => {
+        setSelectedConf(conf);
+        setView("conference");
+      }}
+      onCreateConf={() => setView("create")}
     />
   );
 };
